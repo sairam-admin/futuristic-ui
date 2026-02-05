@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Neon Nexus — Futuristic Interactive UI</title>
+  <meta name="description" content="A small futuristic interactive single-file website ready to deploy on nginx." />
+
+  <style>
+    /* ====== Reset & base ====== */
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body,#app{height:100%}
+    body{
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;
+      background:#02020a;color:#e6f0ff;overflow:hidden;
+      -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale
+    }
+
+    /* ====== Canvas particles background ====== */
+    canvas#bg{position:fixed;inset:0;z-index:0}
+
+    /* ====== Center UI card (glassmorphism) ====== */
+    .shell{
+      position:relative;z-index:10;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:48px;
+    }
+    .card{
+      width:min(1100px,96%);max-width:1100px;border-radius:18px;padding:28px;background:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(120,100,255,0.02));backdrop-filter: blur(10px) saturate(140%);box-shadow:0 10px 40px rgba(2,4,22,0.6), 0 2px 8px rgba(100,60,255,0.06);border:1px solid rgba(255,255,255,0.04);display:grid;grid-template-columns:1fr 420px;gap:22px;align-items:center
+    }
+
+    /* Left column: content */
+    .hero h1{font-size:36px;margin-bottom:12px;letter-spacing:-0.02em}
+    .hero p{color:rgba(230,240,255,0.85);line-height:1.45}
+
+    .controls{display:flex;gap:12px;margin-top:18px}
+    .btn{background:linear-gradient(90deg,#7c4dff,#00d4ff);padding:10px 16px;border-radius:10px;color:#021;cursor:pointer;font-weight:600;border:none;box-shadow:0 6px 20px rgba(0,212,255,0.08);transition:transform .15s ease}
+    .btn:active{transform:translateY(1px)}
+
+    /* Right column: neon panel */
+    .panel{padding:18px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.06));border:1px solid rgba(255,255,255,0.03);min-height:260px;display:flex;flex-direction:column;gap:12px}
+    .panel h3{font-size:14px;color:#cfe8ff;text-transform:uppercase;letter-spacing:1px}
+
+    /* Toggle */
+    .row{display:flex;align-items:center;justify-content:space-between}
+    .toggle{width:56px;height:30px;background:rgba(255,255,255,0.06);border-radius:999px;position:relative;padding:4px;cursor:pointer}
+    .toggle .dot{width:22px;height:22px;border-radius:50%;background:linear-gradient(180deg,#fff,#cfe8ff);position:absolute;left:4px;top:4px;transition:left .22s cubic-bezier(.2,.9,.3,1),box-shadow .15s}
+    .toggle.on{background:linear-gradient(90deg,#7c4dff,#00d4ff)}
+    .toggle.on .dot{left:30px;box-shadow:0 6px 20px rgba(0,212,255,0.15)}
+
+    /* waveform / visualizer */
+    .viz{height:86px;background:linear-gradient(180deg,rgba(255,255,255,0.01),rgba(255,255,255,0.02));border-radius:8px;display:flex;align-items:center;padding:8px;gap:6px}
+    .bar{flex:1;height:100%;display:flex;align-items:flex-end}
+    .bar > i{display:block;width:100%;border-radius:6px;background:linear-gradient(180deg,#00d4ff,#7c4dff);opacity:.9;transform-origin:center bottom;transition:height .08s linear}
+
+    /* gallery of cards */
+    .cards{display:flex;gap:12px;margin-top:12px}
+    .mini{flex:1;min-width:0;padding:12px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,0.01),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.03);cursor:grab;transition:transform .2s ease}
+    .mini:hover{transform:translateY(-6px) scale(1.02)}
+    .mini h4{font-size:13px;margin-bottom:6px}
+
+    /* footer small */
+    .meta{font-size:12px;color:rgba(200,220,255,0.65);margin-top:10px}
+
+    /* responsive */
+    @media (max-width:900px){
+      .card{grid-template-columns:1fr;}
+      .panel{order:-1}
+    }
+
+    /* cursor effect */
+    .follower{position:fixed;width:14px;height:14px;border-radius:50%;pointer-events:none;z-index:20;mix-blend-mode:screen;transform:translate(-50%,-50%);box-shadow:0 0 18px rgba(0,212,255,0.28)}
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <div id="app" class="shell">
+    <div class="card" role="main">
+      <div class="hero">
+        <h1>Neon Nexus</h1>
+        <p>Welcome to a tiny futuristic playground — interactive neon controls, animated particles, audio-reactive visualizer and draggable micro-cards. Drop this single file on your nginx server and it runs.</p>
+
+        <div class="controls" aria-hidden>
+          <button class="btn" id="spawn">Spawn Pulses</button>
+          <button class="btn" id="toggle-audio">Enable Audio Viz</button>
+          <button class="btn" id="snapshot">Download Snapshot</button>
+        </div>
+
+        <div class="meta">Tip: Move mouse to see the neon tracker — click "Enable Audio Viz" and play any audio in another tab to see audio-reactive bars.</div>
+      </div>
+
+      <aside class="panel">
+        <h3>Live Panel</h3>
+        <div class="row">
+          <span>Neon Mode</span>
+          <div id="neonToggle" class="toggle" role="switch" aria-checked="false"><span class="dot"></span></div>
+        </div>
+
+        <h3 style="margin-top:10px">Audio Visualizer</h3>
+        <div class="viz" id="viz">
+          <!-- 8 bars -->
+          <div class="bar"><i style="height:10%"></i></div>
+          <div class="bar"><i style="height:12%"></i></div>
+          <div class="bar"><i style="height:14%"></i></div>
+          <div class="bar"><i style="height:8%"></i></div>
+          <div class="bar"><i style="height:10%"></i></div>
+          <div class="bar"><i style="height:7%"></i></div>
+          <div class="bar"><i style="height:11%"></i></div>
+          <div class="bar"><i style="height:9%"></i></div>
+        </div>
+
+        <h3 style="margin-top:8px">Micro-Modules</h3>
+        <div class="cards" id="cards">
+          <div class="mini" draggable="true"><h4>3D Preview</h4><div>Rotate with mouse</div></div>
+          <div class="mini" draggable="true"><h4>Telemetry</h4><div>Simulated data</div></div>
+          <div class="mini" draggable="true"><h4>Controls</h4><div>Interactive knobs</div></div>
+        </div>
+
+        <div style="margin-top:auto"><small class="meta">Built: single-file static HTML • Deploy → /var/www/html/index.html</small></div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="follower" id="follower"></div>
+
+  <script>
+  // ====== Background particle system ======
+  const canvas = document.getElementById('bg');
+  const ctx = canvas.getContext('2d');
+  let w=canvas.width=innerWidth, h=canvas.height=innerHeight, particles=[];
+  function rand(min,max){return Math.random()*(max-min)+min}
+  class P{constructor(){this.reset()}reset(){this.x=rand(0,w);this.y=rand(0,h);this.vx=rand(-0.3,0.3);this.vy=rand(-0.6,0.6);this.size=rand(0.6,2.6);this.life=rand(60,240);this.hue=rand(180,280)}update(){this.x+=this.vx;this.y+=this.vy;this.life--; if(this.x<0)this.x=w;if(this.x>w)this.x=0;if(this.y<0)this.y=h;if(this.y>h)this.y=0}draw(){ctx.beginPath();ctx.fillStyle='hsla('+this.hue+',90%,'+(30+this.size*6)+'%,'+(0.06+this.size*0.03)+')';ctx.arc(this.x,this.y,this.size,0,Math.PI*2);ctx.fill()}};
+  for(let i=0;i<160;i++)particles.push(new P());
+  function tick(){ctx.clearRect(0,0,w,h); for(let p of particles){p.update();p.draw()} requestAnimationFrame(tick)}
+  tick();
+  addEventListener('resize',()=>{w=canvas.width=innerWidth;h=canvas.height=innerHeight});
+
+  // ====== Neon follower ======
+  const follower=document.getElementById('follower');
+  let mx=0,my=0,fx=0,fy=0;
+  addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY});
+  function follow(){fx += (mx - fx) * 0.14; fy += (my - fy) * 0.14; follower.style.left=fx+'px'; follower.style.top=fy+'px'; requestAnimationFrame(follow)}
+  follow();
+
+  // ====== Spawn pulses on click ======
+  document.getElementById('spawn').addEventListener('click',()=>{for(let i=0;i<18;i++){let s=document.createElement('div');s.style.position='fixed';s.style.left=(innerWidth*0.5+rand(-180,180))+'px';s.style.top=(innerHeight*0.45+rand(-120,120))+'px';s.style.width=s.style.height=rand(30,140)+'px';s.style.borderRadius='50%';s.style.pointerEvents='none';s.style.zIndex=30;s.style.background='radial-gradient(circle at 30% 30%, rgba(0,212,255,0.35), rgba(124,77,255,0.12))';s.style.opacity='0.95';s.style.transform='scale(0)';document.body.appendChild(s);setTimeout(()=>{s.style.transition='transform .9s cubic-bezier(.2,.9,.26,1), opacity 1s';s.style.transform='scale(1)';s.style.opacity='0.12'},10);setTimeout(()=>{s.style.transition='transform 1s ease, opacity 1.2s';s.style.transform='scale(2)';s.style.opacity='0';setTimeout(()=>s.remove(),1200)},900)}})
+
+  // ====== Toggle neon =====  
+  const neonToggle=document.getElementById('neonToggle');
+  neonToggle.addEventListener('click',()=>{neonToggle.classList.toggle('on');neonToggle.setAttribute('aria-checked',neonToggle.classList.contains('on'))})
+
+  // ====== Simple draggable mini-cards ======
+  const cards=document.querySelectorAll('.mini');
+  cards.forEach(card=>{
+    card.addEventListener('dragstart',e=>{card.style.opacity=.6});
+    card.addEventListener('dragend',e=>{card.style.opacity=1});
+  });
+
+  // ====== Snapshot (download canvas shot) ======
+  document.getElementById('snapshot').addEventListener('click',async ()=>{
+    // render a combined snapshot: background canvas + app element
+    const tileW = innerWidth, tileH = innerHeight;
+    const outCanvas = document.createElement('canvas'); outCanvas.width=tileW; outCanvas.height=tileH; const outCtx = outCanvas.getContext('2d');
+    outCtx.drawImage(canvas,0,0);
+    // render app as image using foreignObject via SVG
+    const svg = new XMLSerializer().serializeToString(new Blob([`<svg xmlns='http://www.w3.org/2000/svg' width='${tileW}' height='${tileH}'><foreignObject width='100%' height='100%'>${new XMLSerializer().serializeToString(document.getElementById('app'))}</foreignObject></svg>`],{type:'image/svg+xml'}));
+    const url = URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
+    const img = new Image(); img.onload = ()=>{ outCtx.drawImage(img,0,0); URL.revokeObjectURL(url); const a=document.createElement('a'); a.href=outCanvas.toDataURL('image/png'); a.download='neon-nexus-snapshot.png'; a.click() }; img.src=url;
+  })
+
+  // ====== Audio visualizer (uses Web Audio API) ======
+  let audioCtx=null,analyser=null,source=null; const vizBars=document.querySelectorAll('.viz .bar > i');
+  async function enableAudio(){ if(audioCtx) return; try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); analyser = audioCtx.createAnalyser(); analyser.fftSize = 256; const stream = await navigator.mediaDevices.getUserMedia({audio:true}); source = audioCtx.createMediaStreamSource(stream); source.connect(analyser); const data = new Uint8Array(analyser.frequencyBinCount);
+      function draw(){ analyser.getByteFrequencyData(data); for(let i=0;i<vizBars.length;i++){ const v = data[i*2] || 0; const h = Math.max(6, (v/255)*100); vizBars[i].style.height = h + '%'; } requestAnimationFrame(draw)}
+      draw();
+    }catch(e){alert('Microphone access required for live audio visualizer. If you prefer to visualize tab audio, use an extension or play audio in this tab.');console.warn(e)} }
+  document.getElementById('toggle-audio').addEventListener('click',()=>{enableAudio(); document.getElementById('toggle-audio').textContent='Audio Viz Active'});
+
+  // ====== small simulated telemetry animation ======
+  setInterval(()=>{const mini=document.querySelectorAll('.mini');mini.forEach((m,idx)=>{m.style.transform='rotateX('+Math.sin(Date.now()/1300+idx)*6+'deg) translateY('+Math.sin(Date.now()/900+idx)*6+'px)';})},80)
+
+  // ====== subtle connection: brighten particles when neon on ======
+  const originalTick = tick;
+  (function modTick(){
+    requestAnimationFrame(modTick);
+    // adjust particle hue shift when neon mode on
+    const on = neonToggle.classList && neonToggle.classList.contains('on');
+    if(on){ particles.forEach(p=>{p.hue += (0.08); if(p.hue>360)p.hue-=360}); }
+  })();
+
+  // keep animation running (separate from modTick)
+  // tick already scheduled above
+
+  // ====== accessibility: keyboard shortcut ======
+  addEventListener('keydown',e=>{ if(e.key==='s') document.getElementById('snapshot').click(); if(e.key==='p') document.getElementById('spawn').click(); if(e.key==='a') document.getElementById('toggle-audio').click(); })
+  </script>
+</body>
+</html>
